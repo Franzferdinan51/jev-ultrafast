@@ -11,6 +11,26 @@ from .questions import NEXT_ACTION, TARGET, TEXT_VALUE
 
 CLIENT = httpx.Client(http2=True, timeout=25)
 
+DEFAULT_SYSTEMONE_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
+
+
+def _systemone_endpoint_and_key():
+    """Endpoint + bearer for the decision API.
+
+    SYSTEMONE_ENDPOINT overrides the hosted default — e.g. a local SystemOne
+    shim at http://127.0.0.1:8765/v1/systemone. Against a non-default
+    endpoint the API key is optional and defaults to "local" (the shim
+    needs no key). With the default endpoint, TYPESAFE_API_KEY is still
+    required, exactly as before.
+    """
+    endpoint = os.environ.get("SYSTEMONE_ENDPOINT", DEFAULT_SYSTEMONE_ENDPOINT)
+    key = os.environ.get("TYPESAFE_API_KEY")
+    if key is None:
+        if endpoint == DEFAULT_SYSTEMONE_ENDPOINT:
+            raise KeyError("TYPESAFE_API_KEY")
+        key = "local"
+    return endpoint, key
+
 
 def post_json(url, key, body):
     for attempt in range(3):
@@ -116,7 +136,8 @@ def choose(state, goal, history):
         "questions": questions,
     }
     started = time.perf_counter()
-    result = post_json("https://api.typesafe.ai/v1/systemone", os.environ["TYPESAFE_API_KEY"], body)
+    endpoint, key = _systemone_endpoint_and_key()
+    result = post_json(endpoint, key, body)
     operation_answer = validate_choice(result["answers"].get("operation", {}), operations)
     operation = operation_answer["choice"]
     target = None
